@@ -18,3 +18,4 @@ venv/
 # IDEs
 .vscode/
 .idea/
+.DS_Store
