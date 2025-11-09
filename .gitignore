@@ -1,4 +1,3 @@
-.DS_Store
 # macOS system files
 .DS_Store
 
@@ -18,4 +17,3 @@ venv/
 # IDEs
 .vscode/
 .idea/
-.DS_Store
