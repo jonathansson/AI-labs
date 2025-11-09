@@ -17,3 +17,9 @@ venv/
 # IDEs
 .vscode/
 .idea/
+
+# Ignore local or external installer scripts
+Miniforge3-MacOSX-arm64.sh
+*.run
+*.bin
+
