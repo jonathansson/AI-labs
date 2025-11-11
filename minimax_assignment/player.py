@@ -62,8 +62,9 @@ class PlayerControllerMinimax(PlayerController):
         :rtype: str
         """
     
-        TIME_LIMIT = 0.03 # 20 milliseconds
-        start_time = time.time()
+        # Not used right now
+        #TIME_LIMIT = 0.04 # 20 milliseconds
+        #start_time = time.time()
 
         def heuristic(node: Node):
             # 1) Score difference (our score - opponent's score)
@@ -93,8 +94,8 @@ class PlayerControllerMinimax(PlayerController):
                 value -= fs * 0.8
 
             # 3) Proximity to fish (only those that are not yet caught)
-            # The closer to a good fish -> the better.
-            # The closer to a bad fish -> the worse.
+            # The closer to a good fish -> the better
+            # The closer to a bad fish -> the worse
 
             for fid, (fx, fy) in fish_positions.items():
                 fs = fish_scores[fid]
@@ -117,50 +118,64 @@ class PlayerControllerMinimax(PlayerController):
 
             return value
 
-        def minimax(state: Node, is_max_turn: bool):
+        def alphabeta(state: Node, depth: int, alpha: float, beta: float, is_max_turn: bool):
             
-            if time.time() - start_time >= TIME_LIMIT:
-                return heuristic(state)
+            #if time.time() - start_time >= TIME_LIMIT:
+                #time_up = True
+                #return heuristic(state)
             
             children = state.compute_and_get_children()
-            # If the node has no children (empty list)
-            if not children:
+
+            # If the node has no children (empty list) or we have looked at specific depth
+            if not children or depth == 0:
                 return heuristic(state)
 
             if is_max_turn:
-                bestPossible = float('-inf')
+                # our turn (MAX)
+                v = float('-inf')
                 for child in children:
-                    v = minimax(child, False)
-                    bestPossible = max(bestPossible, v)
-                return bestPossible
-            else: 
-                bestPossible = float('inf')
+                    v = max(v, alphabeta(child, depth - 1, alpha, beta, False))
+                    alpha = max(alpha, v)
+                    if beta <= alpha:
+                        break # pruning
+                return v
+            else:
+                # opponent's turn (MIN) 
+                v = float('inf')
                 for child in children:
-                    v = minimax(child, True)
-                    bestPossible = min(bestPossible, v)
-                return bestPossible
+                    v = min(v, alphabeta(child, depth - 1, alpha, beta, True))
+                    beta = min(beta, v)
+                    if beta <= alpha:
+                        break # pruning
+                return v
         
         # Start with the root node
         root_children = initial_tree_node.compute_and_get_children()
+        # If there are no children
         if not root_children:
             return ACTION_TO_STR[0] # "stay"
         
         # We want to maximize
         best_value = float('-inf')
         best_moves = []
+        alpha = float('-inf')
+        beta = float('inf')
 
+         # At root it's our turn (MAX).
         for child in root_children:
-            val = minimax(child, is_max_turn=False)
+            # Opponents turn, returns 5 values
+            val = alphabeta(child, 2, alpha, beta, False)
 
+            # Check the 5 value
             if val > best_value:
                 best_value = val
                 best_moves = [child.move]
+                # If some values are the same, add both to the list
             elif val == best_value:
                 best_moves.append(child.move)
 
         choosen_move = random.choice(best_moves)
         return ACTION_TO_STR[choosen_move]
-
 
                 
         
