@@ -62,7 +62,7 @@ class PlayerControllerMinimax(PlayerController):
         """
     
         #Timer for IDS
-        TIME_LIMIT = 0.07 # 70 milliseconds
+        TIME_LIMIT = 0.02 # 20 milliseconds
         start_time = time.time()
         time_up = False
 
@@ -164,7 +164,7 @@ class PlayerControllerMinimax(PlayerController):
         
         # IDS
         best_move_IDS = None
-        max_depth = 200
+        max_depth = 20
 
         for current_depth in range(1, max_depth + 1):
             # Check if time left
