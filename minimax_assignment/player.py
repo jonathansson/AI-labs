@@ -7,7 +7,6 @@ from fishing_game_core.game_tree import Node
 from fishing_game_core.player_utils import PlayerController
 from fishing_game_core.shared import ACTION_TO_STR
 
-
 class PlayerControllerHuman(PlayerController):
     def player_loop(self):
         """
@@ -62,9 +61,10 @@ class PlayerControllerMinimax(PlayerController):
         :rtype: str
         """
     
-        # Not used right now
-        #TIME_LIMIT = 0.04 # 20 milliseconds
-        #start_time = time.time()
+        #Timer for IDS
+        TIME_LIMIT = 0.07 # 70 milliseconds
+        start_time = time.time()
+        time_up = False
 
         def heuristic(node: Node):
             # 1) Score difference (our score - opponent's score)
@@ -119,10 +119,13 @@ class PlayerControllerMinimax(PlayerController):
             return value
 
         def alphabeta(state: Node, depth: int, alpha: float, beta: float, is_max_turn: bool):
-            
-            #if time.time() - start_time >= TIME_LIMIT:
-                #time_up = True
-                #return heuristic(state)
+            nonlocal time_up
+
+            if time.time() - start_time >= TIME_LIMIT:
+                time_up = True
+                return heuristic(state)
+            else:
+                time_up = False
             
             children = state.compute_and_get_children()
 
@@ -135,6 +138,8 @@ class PlayerControllerMinimax(PlayerController):
                 v = float('-inf')
                 for child in children:
                     v = max(v, alphabeta(child, depth - 1, alpha, beta, False))
+                    if time_up:
+                        return v
                     alpha = max(alpha, v)
                     if beta <= alpha:
                         break # pruning
@@ -144,6 +149,8 @@ class PlayerControllerMinimax(PlayerController):
                 v = float('inf')
                 for child in children:
                     v = min(v, alphabeta(child, depth - 1, alpha, beta, True))
+                    if time_up:
+                        return v
                     beta = min(beta, v)
                     if beta <= alpha:
                         break # pruning
@@ -155,27 +162,52 @@ class PlayerControllerMinimax(PlayerController):
         if not root_children:
             return ACTION_TO_STR[0] # "stay"
         
-        # We want to maximize
-        best_value = float('-inf')
-        best_moves = []
-        alpha = float('-inf')
-        beta = float('inf')
+        # IDS
+        best_move_IDS = None
+        max_depth = 200
 
-         # At root it's our turn (MAX).
-        for child in root_children:
-            # Opponents turn, returns 5 values
-            val = alphabeta(child, 2, alpha, beta, False)
+        for current_depth in range(1, max_depth + 1):
+            # Check if time left
+            if time.time() - start_time >= TIME_LIMIT:
+                break
 
-            # Check the 5 value
-            if val > best_value:
-                best_value = val
-                best_moves = [child.move]
+            time_up = False
+            # We want to maximize
+            best_value = float('-inf')
+            best_moves = []
+            alpha = float('-inf')
+            beta = float('inf')
+
+            # Search current depth
+            for child in root_children:
+                if time_up:
+                    break
+                
+                # Opponents turn
+                val = alphabeta(child, current_depth, alpha, beta, False)
+
+                if val > best_value:
+                    best_value = val
+                    best_moves = [child.move]
+                
                 # If some values are the same, add both to the list
-            elif val == best_value:
-                best_moves.append(child.move)
+                elif val == best_value:
+                    best_moves.append(child.move)
 
-        choosen_move = random.choice(best_moves)
-        return ACTION_TO_STR[choosen_move]
+                alpha = max(alpha, best_value)
+
+            # If completed on time, update best move
+            if not time_up and best_moves:
+                best_move_IDS = random.choice(best_moves)
+
+            if time_up:
+                break
+        
+        # Return best move found from deepest completed search
+        if best_move_IDS is not None:
+            return ACTION_TO_STR[best_move_IDS]
+        else:
+            return ACTION_TO_STR[0]
 
                 
         
