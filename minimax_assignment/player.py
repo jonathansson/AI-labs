@@ -7,6 +7,7 @@ from fishing_game_core.game_tree import Node
 from fishing_game_core.player_utils import PlayerController
 from fishing_game_core.shared import ACTION_TO_STR
 
+
 class PlayerControllerHuman(PlayerController):
     def player_loop(self):
         """
@@ -61,12 +62,30 @@ class PlayerControllerMinimax(PlayerController):
         :rtype: str
         """
     
-        #Timer for IDS
-        TIME_LIMIT = 0.02 # 20 milliseconds
-        start_time = time.time()
-        time_up = False
+        # Transposition table: key -> (stored_depth, value)
+        tt = {} # {(key): (depth, value)}
+        
+        def make_key(node: Node, is_max_turn: bool):
+            
+            s = node.state
+            p0, p1 = s.get_player_scores()
+            hooks = s.get_hook_positions()
+            my_hook = hooks[0]
+            opp_hook = hooks[1]
+            caught = s.get_caught()
+            fish_positions = s.get_fish_positions()
+            fish_pos_tuple = tuple(sorted(fish_positions.items()))
+            return (is_max_turn, p0, p1, my_hook, opp_hook, caught, fish_pos_tuple)
+        
+        # Not used right now
+        #TIME_LIMIT = 0.04 # 20 milliseconds
+        #start_time = time.time()
 
         def heuristic(node: Node):
+            if node.depth == len(node.observations):
+                p0, p1 = node.state.get_player_scores()
+                return p0 - p1
+            
             # 1) Score difference (our score - opponent's score)
             p0, p1 = node.state.get_player_scores()
             value = p0 - p1
@@ -103,12 +122,12 @@ class PlayerControllerMinimax(PlayerController):
                 # Distance from our hook to the fish
                 dx_my = my_hook[0] - fx
                 dy_my = my_hook[1] - fy
-                dist_my = math.hypot(dx_my, dy_my)  # sqrt(dx^2 + dy^2)
+                dist_my = abs(dx_my) + abs(dy_my)
 
                 # Distance from opponent's hook to the fish
                 dx_opp = opp_hook[0] - fx
                 dy_opp = opp_hook[1] - fy
-                dist_opp = math.hypot(dx_opp, dy_opp)
+                dist_opp = abs(dx_opp) + abs(dy_opp)
 
                 # Close = 1.0, Far = approaches 0.0
                 closeness_my = 1.0 / (dist_my + 1.0)
@@ -119,42 +138,47 @@ class PlayerControllerMinimax(PlayerController):
             return value
 
         def alphabeta(state: Node, depth: int, alpha: float, beta: float, is_max_turn: bool):
-            nonlocal time_up
-
-            if time.time() - start_time >= TIME_LIMIT:
-                time_up = True
-                return heuristic(state)
-            else:
-                time_up = False
+            
+            key = make_key(state, is_max_turn)
+            entry = tt.get(key)
+            if entry is not None:
+                stored_depth, stored_val = entry
+                if stored_depth >= depth:
+                    return stored_val
             
             children = state.compute_and_get_children()
 
             # If the node has no children (empty list) or we have looked at specific depth
             if not children or depth == 0:
-                return heuristic(state)
+                val = heuristic(state)
+                tt[key] = (depth, val)
+                return val
+            
+            if is_max_turn:
+                children.sort(key=heuristic, reverse=True)
+            else:
+                children.sort(key=heuristic, reverse=False)
 
             if is_max_turn:
                 # our turn (MAX)
                 v = float('-inf')
                 for child in children:
                     v = max(v, alphabeta(child, depth - 1, alpha, beta, False))
-                    if time_up:
-                        return v
                     alpha = max(alpha, v)
                     if beta <= alpha:
                         break # pruning
-                return v
+            
             else:
                 # opponent's turn (MIN) 
                 v = float('inf')
                 for child in children:
                     v = min(v, alphabeta(child, depth - 1, alpha, beta, True))
-                    if time_up:
-                        return v
                     beta = min(beta, v)
                     if beta <= alpha:
                         break # pruning
-                return v
+            
+            tt[key] = (depth, v)
+            return v
         
         # Start with the root node
         root_children = initial_tree_node.compute_and_get_children()
@@ -162,52 +186,31 @@ class PlayerControllerMinimax(PlayerController):
         if not root_children:
             return ACTION_TO_STR[0] # "stay"
         
-        # IDS
-        best_move_IDS = None
-        max_depth = 20
-
-        for current_depth in range(1, max_depth + 1):
-            # Check if time left
-            if time.time() - start_time >= TIME_LIMIT:
-                break
-
-            time_up = False
-            # We want to maximize
-            best_value = float('-inf')
-            best_moves = []
-            alpha = float('-inf')
-            beta = float('inf')
-
-            # Search current depth
-            for child in root_children:
-                if time_up:
-                    break
-                
-                # Opponents turn
-                val = alphabeta(child, current_depth, alpha, beta, False)
-
-                if val > best_value:
-                    best_value = val
-                    best_moves = [child.move]
-                
-                # If some values are the same, add both to the list
-                elif val == best_value:
-                    best_moves.append(child.move)
-
-                alpha = max(alpha, best_value)
-
-            # If completed on time, update best move
-            if not time_up and best_moves:
-                best_move_IDS = random.choice(best_moves)
-
-            if time_up:
-                break
+        root_children.sort(key=heuristic, reverse=True)
         
-        # Return best move found from deepest completed search
-        if best_move_IDS is not None:
-            return ACTION_TO_STR[best_move_IDS]
-        else:
-            return ACTION_TO_STR[0]
+        # We want to maximize
+        best_value = float('-inf')
+        best_moves = []
+        alpha = float('-inf')
+        beta = float('inf')
+
+         # At root it's our turn (MAX).
+        for child in root_children:
+            # Opponents turn, returns 5 values
+            val = alphabeta(child, 4, alpha, beta, False) # Worse value on Kattis if >4 why??
+
+            # Check the 5 value
+            if val > best_value:
+                best_value = val
+                best_moves = [child.move]
+                # If some values are the same, add both to the list
+            elif val == best_value:
+                best_moves.append(child.move)
+                
+            alpha = max(alpha, best_value)
+
+        choosen_move = random.choice(best_moves) # This does so that we sometimes get different results on Kattis with the same depth
+        return ACTION_TO_STR[choosen_move]
 
                 
         
