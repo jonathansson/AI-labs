@@ -61,7 +61,7 @@ class PlayerControllerMinimax(PlayerController):
         :return: either "stay", "left", "right", "up" or "down"
         :rtype: str
         """
-    
+        max_depth = 1
         # Transposition table: key -> (stored_depth, value)
         tt = {} # {(key): (depth, value)}
         
@@ -137,18 +137,18 @@ class PlayerControllerMinimax(PlayerController):
             return value
 
         def alphabeta(state: Node, depth: int, alpha: float, beta: float, is_max_turn: bool):
-            
-            
-            print(depth)
-
+                
             key = make_key(state, is_max_turn)
             
+            #print(depth)
+
             if(time.time() - start_time) >= TIME_LIMIT:
                 time_up = True
             else:
                 time_up = False
 
             entry = tt.get(key)
+            print(entry)
             if entry is not None:
                 stored_depth, stored_val = entry
                 if stored_depth >= depth:
@@ -202,20 +202,23 @@ class PlayerControllerMinimax(PlayerController):
         alpha = float('-inf')
         beta = float('inf')
 
-         # At root it's our turn (MAX).
-        for child in root_children:
-            # Opponents turn, returns 5 values
-            val = alphabeta(child, 7, alpha, beta, False) # Worse value on Kattis if >4 why??
+        while(max_depth <= 1):
+            # At root it's our turn (MAX).
+            for child in root_children:
+                # Opponents turn, returns 5 values
+                val = alphabeta(child, max_depth, alpha, beta, False) # Worse value on Kattis if >4 why??
 
-            # Check the 5 value
-            if val > best_value:
-                best_value = val
-                best_moves = [child.move]
-                # If some values are the same, add both to the list
-            elif val == best_value:
-                best_moves.append(child.move)
-                
-            alpha = max(alpha, best_value)
+                # Check the 5 value
+                if val > best_value:
+                    best_value = val
+                    best_moves = [child.move]
+                    # If some values are the same, add both to the list
+                elif val == best_value:
+                    best_moves.append(child.move)
+                    
+                alpha = max(alpha, best_value)
+
+                max_depth += 1
 
         choosen_move = random.choice(best_moves) # This does so that we sometimes get different results on Kattis with the same depth
         return ACTION_TO_STR[choosen_move]
