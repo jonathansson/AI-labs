@@ -77,7 +77,7 @@ class PlayerControllerMinimax(PlayerController):
             fish_pos_tuple = tuple(sorted(fish_positions.items()))
             return (is_max_turn, p0, p1, my_hook, opp_hook, caught, fish_pos_tuple)
         
-        TIME_LIMIT = 0.04 # 20 milliseconds
+        TIME_LIMIT = 0.07 # 20 milliseconds
         start_time = time.time()
 
         def heuristic(node: Node):
@@ -148,7 +148,7 @@ class PlayerControllerMinimax(PlayerController):
                 time_up = False
 
             entry = tt.get(key)
-            print(entry)
+            print(state)
             if entry is not None:
                 stored_depth, stored_val = entry
                 if stored_depth >= depth:
@@ -202,7 +202,7 @@ class PlayerControllerMinimax(PlayerController):
         alpha = float('-inf')
         beta = float('inf')
 
-        while(max_depth <= 1):
+        while(max_depth <= 7):
             # At root it's our turn (MAX).
             for child in root_children:
                 # Opponents turn, returns 5 values
