@@ -77,9 +77,8 @@ class PlayerControllerMinimax(PlayerController):
             fish_pos_tuple = tuple(sorted(fish_positions.items()))
             return (is_max_turn, p0, p1, my_hook, opp_hook, caught, fish_pos_tuple)
         
-        # Not used right now
-        #TIME_LIMIT = 0.04 # 20 milliseconds
-        #start_time = time.time()
+        TIME_LIMIT = 0.04 # 20 milliseconds
+        start_time = time.time()
 
         def heuristic(node: Node):
             if node.depth == len(node.observations):
@@ -139,7 +138,16 @@ class PlayerControllerMinimax(PlayerController):
 
         def alphabeta(state: Node, depth: int, alpha: float, beta: float, is_max_turn: bool):
             
+            if depth > 6:
+                print(depth)
+
             key = make_key(state, is_max_turn)
+            
+            if(time.time() - start_time) >= TIME_LIMIT:
+                val = heuristic(state)
+                tt[key] = (depth, val)
+                return val
+
             entry = tt.get(key)
             if entry is not None:
                 stored_depth, stored_val = entry
@@ -163,7 +171,7 @@ class PlayerControllerMinimax(PlayerController):
                 # our turn (MAX)
                 v = float('-inf')
                 for child in children:
-                    v = max(v, alphabeta(child, depth - 1, alpha, beta, False))
+                    v = max(v, alphabeta(child, depth + 1, alpha, beta, False))
                     alpha = max(alpha, v)
                     if beta <= alpha:
                         break # pruning
@@ -172,7 +180,7 @@ class PlayerControllerMinimax(PlayerController):
                 # opponent's turn (MIN) 
                 v = float('inf')
                 for child in children:
-                    v = min(v, alphabeta(child, depth - 1, alpha, beta, True))
+                    v = min(v, alphabeta(child, depth + 1, alpha, beta, True))
                     beta = min(beta, v)
                     if beta <= alpha:
                         break # pruning
@@ -197,7 +205,7 @@ class PlayerControllerMinimax(PlayerController):
          # At root it's our turn (MAX).
         for child in root_children:
             # Opponents turn, returns 5 values
-            val = alphabeta(child, 4, alpha, beta, False) # Worse value on Kattis if >4 why??
+            val = alphabeta(child, 0, alpha, beta, False) # Worse value on Kattis if >4 why??
 
             # Check the 5 value
             if val > best_value:
