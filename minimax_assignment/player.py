@@ -61,7 +61,12 @@ class PlayerControllerMinimax(PlayerController):
         :return: either "stay", "left", "right", "up" or "down"
         :rtype: str
         """
-    
+        DEPTH_LIMIT = 10
+        depth = 1 # starting depth
+        TIME_LIMIT = 0.04 # 40 milliseconds
+        start_time = time.time()
+        #time_up = False # time left?
+
         # Transposition table: key -> (stored_depth, value)
         tt = {} # {(key): (depth, value)}
         
@@ -77,9 +82,6 @@ class PlayerControllerMinimax(PlayerController):
             fish_pos_tuple = tuple(sorted(fish_positions.items()))
             return (is_max_turn, p0, p1, my_hook, opp_hook, caught, fish_pos_tuple)
         
-        # Not used right now
-        #TIME_LIMIT = 0.04 # 20 milliseconds
-        #start_time = time.time()
 
         def heuristic(node: Node):
             if node.depth == len(node.observations):
@@ -139,13 +141,26 @@ class PlayerControllerMinimax(PlayerController):
 
         def alphabeta(state: Node, depth: int, alpha: float, beta: float, is_max_turn: bool):
             
+            if (time.time() - start_time) >= TIME_LIMIT:
+                time_up = True
+            else:
+                time_up = False
+
             key = make_key(state, is_max_turn)
             entry = tt.get(key)
             if entry is not None:
                 stored_depth, stored_val = entry
                 if stored_depth >= depth:
                     return stored_val
-            
+
+            if depth > DEPTH_LIMIT or time_up:
+                if is_max_turn:
+                    return alpha
+                else:
+                    return beta
+
+            print(depth)
+
             children = state.compute_and_get_children()
 
             # If the node has no children (empty list) or we have looked at specific depth
@@ -163,7 +178,7 @@ class PlayerControllerMinimax(PlayerController):
                 # our turn (MAX)
                 v = float('-inf')
                 for child in children:
-                    v = max(v, alphabeta(child, depth - 1, alpha, beta, False))
+                    v = max(v, alphabeta(child, depth + 1, alpha, beta, False))
                     alpha = max(alpha, v)
                     if beta <= alpha:
                         break # pruning
@@ -172,7 +187,7 @@ class PlayerControllerMinimax(PlayerController):
                 # opponent's turn (MIN) 
                 v = float('inf')
                 for child in children:
-                    v = min(v, alphabeta(child, depth - 1, alpha, beta, True))
+                    v = min(v, alphabeta(child, depth + 1, alpha, beta, True))
                     beta = min(beta, v)
                     if beta <= alpha:
                         break # pruning
@@ -197,7 +212,7 @@ class PlayerControllerMinimax(PlayerController):
          # At root it's our turn (MAX).
         for child in root_children:
             # Opponents turn, returns 5 values
-            val = alphabeta(child, 4, alpha, beta, False) # Worse value on Kattis if >4 why??
+            val = alphabeta(child, depth, alpha, beta, False) # Worse value on Kattis if >4 why??
 
             # Check the 5 value
             if val > best_value:
