@@ -61,23 +61,18 @@ class PlayerControllerMinimax(PlayerController):
         :return: either "stay", "left", "right", "up" or "down"
         :rtype: str
         """
-        max_depth = 1
+        
         # Transposition table: key -> (stored_depth, value)
         tt = {} # {(key): (depth, value)}
         
-        def make_key(node: Node, is_max_turn: bool):
+        def make_key(node: Node):
             
-            s = node.state
-            p0, p1 = s.get_player_scores()
-            hooks = s.get_hook_positions()
-            my_hook = hooks[0]
-            opp_hook = hooks[1]
-            caught = s.get_caught()
-            fish_positions = s.get_fish_positions()
-            fish_pos_tuple = tuple(sorted(fish_positions.items()))
-            return (is_max_turn, p0, p1, my_hook, opp_hook, caught, fish_pos_tuple)
+            state = node.state
+
+            return (state)
         
-        TIME_LIMIT = 0.07 # 20 milliseconds
+        
+        TIME_LIMIT = 0.06 # 20 milliseconds
         start_time = time.time()
 
         def heuristic(node: Node):
@@ -138,9 +133,9 @@ class PlayerControllerMinimax(PlayerController):
 
         def alphabeta(state: Node, depth: int, alpha: float, beta: float, is_max_turn: bool):
                 
-            key = make_key(state, is_max_turn)
-            
-            #print(depth)
+            key = make_key(state)
+
+            print(depth)
 
             if(time.time() - start_time) >= TIME_LIMIT:
                 time_up = True
@@ -148,10 +143,10 @@ class PlayerControllerMinimax(PlayerController):
                 time_up = False
 
             entry = tt.get(key)
-            print(state)
+
             if entry is not None:
                 stored_depth, stored_val = entry
-                if stored_depth >= depth:
+                if stored_val >= heuristic(state):
                     return stored_val
             
             children = state.compute_and_get_children()
@@ -201,12 +196,13 @@ class PlayerControllerMinimax(PlayerController):
         best_moves = []
         alpha = float('-inf')
         beta = float('inf')
+        max_depth = 1
 
         while(max_depth <= 7):
             # At root it's our turn (MAX).
             for child in root_children:
                 # Opponents turn, returns 5 values
-                val = alphabeta(child, max_depth, alpha, beta, False) # Worse value on Kattis if >4 why??
+                val = alphabeta(child, max_depth, alpha, beta, False)
 
                 # Check the 5 value
                 if val > best_value:
@@ -217,10 +213,10 @@ class PlayerControllerMinimax(PlayerController):
                     best_moves.append(child.move)
                     
                 alpha = max(alpha, best_value)
+                #print(max_depth)
+            max_depth += 1
 
-                max_depth += 1
-
-        choosen_move = random.choice(best_moves) # This does so that we sometimes get different results on Kattis with the same depth
+        choosen_move = max(best_moves)
         return ACTION_TO_STR[choosen_move]
 
                 
