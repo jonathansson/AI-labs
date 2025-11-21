@@ -138,15 +138,15 @@ class PlayerControllerMinimax(PlayerController):
 
         def alphabeta(state: Node, depth: int, alpha: float, beta: float, is_max_turn: bool):
             
-            if depth > 6:
-                print(depth)
+            
+            print(depth)
 
             key = make_key(state, is_max_turn)
             
             if(time.time() - start_time) >= TIME_LIMIT:
-                val = heuristic(state)
-                tt[key] = (depth, val)
-                return val
+                time_up = True
+            else:
+                time_up = False
 
             entry = tt.get(key)
             if entry is not None:
@@ -171,18 +171,18 @@ class PlayerControllerMinimax(PlayerController):
                 # our turn (MAX)
                 v = float('-inf')
                 for child in children:
-                    v = max(v, alphabeta(child, depth + 1, alpha, beta, False))
+                    v = max(v, alphabeta(child, depth - 1, alpha, beta, False))
                     alpha = max(alpha, v)
-                    if beta <= alpha:
+                    if beta <= alpha or time_up:
                         break # pruning
             
             else:
                 # opponent's turn (MIN) 
                 v = float('inf')
                 for child in children:
-                    v = min(v, alphabeta(child, depth + 1, alpha, beta, True))
+                    v = min(v, alphabeta(child, depth - 1, alpha, beta, True))
                     beta = min(beta, v)
-                    if beta <= alpha:
+                    if beta <= alpha or time_up:
                         break # pruning
             
             tt[key] = (depth, v)
@@ -205,7 +205,7 @@ class PlayerControllerMinimax(PlayerController):
          # At root it's our turn (MAX).
         for child in root_children:
             # Opponents turn, returns 5 values
-            val = alphabeta(child, 0, alpha, beta, False) # Worse value on Kattis if >4 why??
+            val = alphabeta(child, 7, alpha, beta, False) # Worse value on Kattis if >4 why??
 
             # Check the 5 value
             if val > best_value:
