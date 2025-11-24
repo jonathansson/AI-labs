@@ -70,7 +70,7 @@ class PlayerControllerMinimax(PlayerController):
         start_time = time.time()
         time_up = False
 
-        nodes_visited = 0  # used for debug
+        #nodes_visited = 0  # used for debug
 
         def make_key(node: Node, is_max_turn: bool):
             s = node.state
@@ -140,10 +140,10 @@ class PlayerControllerMinimax(PlayerController):
             return value
 
         def alphabeta(state: Node, depth: int, alpha: float, beta: float, is_max_turn: bool):
-            nonlocal time_up, nodes_visited
+            nonlocal time_up#, nodes_visited # used for debug
 
             # debug-print for each node
-            nodes_visited += 1 # used for debug
+            #nodes_visited += 1 # used for debug
             # print(
             #     f"[AB] node={nodes_visited}, tree_depth={state.depth}, remaining_depth={depth}, "
             #     f"{'MAX' if is_max_turn else 'MIN'}",
@@ -222,11 +222,11 @@ class PlayerControllerMinimax(PlayerController):
 
         # Iterative deepening
         best_move_overall = root_children[0].move
-        best_value_overall = float('-inf')
-        best_heur_overall = heuristic(root_children[0])
+        #best_value_overall = float('-inf') # For debug
+        #best_heur_overall = heuristic(root_children[0]) # For debug
 
         # max search depth
-        max_depth = 8
+        max_depth = 100
 
         for current_depth in range(1, max_depth + 1):
             if (time.time() - start_time) >= TIME_LIMIT:
@@ -264,8 +264,8 @@ class PlayerControllerMinimax(PlayerController):
 
             # Only accept this depth if we finished it in time
             if not time_up and best_moves:
-                best_value_overall = best_value  # For debug
-                best_heur_overall = best_heur # For debug
+                #best_value_overall = best_value  # For debug
+                #best_heur_overall = best_heur # For debug
                 # Allow random among truly equal moves
                 best_move_overall = random.choice(best_moves)
                 # Reorder root children so best move is first next iteration
