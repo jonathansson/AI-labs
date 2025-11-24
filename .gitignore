@@ -24,3 +24,4 @@ Miniforge3-MacOSX-arm64.sh
 *.bin
 
 /minimax_assignment/fishing_game_core/__pycache__
+*.pyc

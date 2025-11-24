@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import random
 import time
-import math
+#import sys  #for debug prints
 
 from fishing_game_core.game_tree import Node
 from fishing_game_core.player_utils import PlayerController
@@ -52,7 +52,7 @@ class PlayerControllerMinimax(PlayerController):
             # Execute next action
             self.sender({"action": best_move, "search_time": None})
 
-    def search_best_next_move(self, initial_tree_node : Node):
+    def search_best_next_move(self, initial_tree_node: Node):
         """
         Use minimax (and extensions) to find best possible next move for player 0 (green boat)
         :param initial_tree_node: Initial game tree node
@@ -61,65 +61,68 @@ class PlayerControllerMinimax(PlayerController):
         :return: either "stay", "left", "right", "up" or "down"
         :rtype: str
         """
-    
-        # Transposition table: key -> (stored_depth, value)
-        tt = {} # {(key): (depth, value)}
-        
+
+        # Transposition table
+        tt = {}
+
+        # Time limit per move
+        TIME_LIMIT = 0.060
+        start_time = time.time()
+        time_up = False
+
+        nodes_visited = 0  # used for debug
+
         def make_key(node: Node, is_max_turn: bool):
-            
             s = node.state
             p0, p1 = s.get_player_scores()
             hooks = s.get_hook_positions()
-            my_hook = hooks[0]
-            opp_hook = hooks[1]
             caught = s.get_caught()
             fish_positions = s.get_fish_positions()
-            fish_pos_tuple = tuple(sorted(fish_positions.items()))
-            return (is_max_turn, p0, p1, my_hook, opp_hook, caught, fish_pos_tuple)
-        
-        # Not used right now
-        #TIME_LIMIT = 0.04 # 20 milliseconds
-        #start_time = time.time()
+
+            fish_pos_tuple = tuple(fish_positions.items())
+
+            score_diff = p0 - p1
+
+            return (is_max_turn, score_diff, hooks[0], hooks[1], caught, fish_pos_tuple)
 
         def heuristic(node: Node):
+            s = node.state
+
+            # If we reached the end of observations, just return score diff
             if node.depth == len(node.observations):
-                p0, p1 = node.state.get_player_scores()
+                p0, p1 = s.get_player_scores()
                 return p0 - p1
-            
+
             # 1) Score difference (our score - opponent's score)
-            p0, p1 = node.state.get_player_scores()
+            p0, p1 = s.get_player_scores()
             value = p0 - p1
 
             # Get position data
-            hooks = node.state.get_hook_positions()
+            hooks = s.get_hook_positions()
             my_hook = hooks[0]
             opp_hook = hooks[1]
 
-            fish_positions = node.state.get_fish_positions()
-            fish_scores = node.state.get_fish_scores()
+            fish_positions = s.get_fish_positions()
+            fish_scores = s.get_fish_scores()
 
             # 2) If anyone currently has a fish on the hook
-            my_caught, opp_caught = node.state.get_caught()
+            my_caught, opp_caught = s.get_caught()
 
             # Bonus if we have a good fish, penalty if it's a bad one
             if my_caught is not None:
                 fs = fish_scores[my_caught]
-                # strongly reward if we have already caught something (80%)
-                value += fs * 0.8  
+                value += fs * 0.95
 
-            # Penalize if the opponent has something on their hook (their catch is bad for us)
+            # Penalize if the opponent has something on their hook
             if opp_caught is not None:
                 fs = fish_scores[opp_caught]
-                value -= fs * 0.8
+                value -= fs * 0.95
 
             # 3) Proximity to fish (only those that are not yet caught)
-            # The closer to a good fish -> the better
-            # The closer to a bad fish -> the worse
-
             for fid, (fx, fy) in fish_positions.items():
                 fs = fish_scores[fid]
 
-                # Distance from our hook to the fish
+                # Distance from our hook to the fish (Manhattan)
                 dx_my = my_hook[0] - fx
                 dy_my = my_hook[1] - fy
                 dist_my = abs(dx_my) + abs(dy_my)
@@ -129,7 +132,6 @@ class PlayerControllerMinimax(PlayerController):
                 dy_opp = opp_hook[1] - fy
                 dist_opp = abs(dx_opp) + abs(dy_opp)
 
-                # Close = 1.0, Far = approaches 0.0
                 closeness_my = 1.0 / (dist_my + 1.0)
                 closeness_opp = 1.0 / (dist_opp + 1.0)
 
@@ -138,14 +140,28 @@ class PlayerControllerMinimax(PlayerController):
             return value
 
         def alphabeta(state: Node, depth: int, alpha: float, beta: float, is_max_turn: bool):
-            
+            nonlocal time_up, nodes_visited
+
+            # debug-print for each node
+            nodes_visited += 1 # used for debug
+            # print(
+            #     f"[AB] node={nodes_visited}, tree_depth={state.depth}, remaining_depth={depth}, "
+            #     f"{'MAX' if is_max_turn else 'MIN'}",
+            #     file=sys.stderr,
+            # )
+
+            # Time cutoff
+            if time_up or (time.time() - start_time) >= TIME_LIMIT:
+                time_up = True
+                return heuristic(state)
+
             key = make_key(state, is_max_turn)
             entry = tt.get(key)
             if entry is not None:
                 stored_depth, stored_val = entry
                 if stored_depth >= depth:
                     return stored_val
-            
+
             children = state.compute_and_get_children()
 
             # If the node has no children (empty list) or we have looked at specific depth
@@ -153,7 +169,8 @@ class PlayerControllerMinimax(PlayerController):
                 val = heuristic(state)
                 tt[key] = (depth, val)
                 return val
-            
+
+            # Move ordering by heuristic only
             if is_max_turn:
                 children.sort(key=heuristic, reverse=True)
             else:
@@ -163,59 +180,116 @@ class PlayerControllerMinimax(PlayerController):
                 # our turn (MAX)
                 v = float('-inf')
                 for child in children:
-                    v = max(v, alphabeta(child, depth - 1, alpha, beta, False))
-                    alpha = max(alpha, v)
+                    if time_up or (time.time() - start_time) >= TIME_LIMIT:
+                        time_up = True
+                        break
+
+                    val = alphabeta(child, depth - 1, alpha, beta, False)
+                    if val > v:
+                        v = val
+                    if v > alpha:
+                        alpha = v
                     if beta <= alpha:
-                        break # pruning
-            
+                        break
+
             else:
-                # opponent's turn (MIN) 
+                # opponent's turn (MIN)
                 v = float('inf')
                 for child in children:
-                    v = min(v, alphabeta(child, depth - 1, alpha, beta, True))
-                    beta = min(beta, v)
+                    if time_up or (time.time() - start_time) >= TIME_LIMIT:
+                        time_up = True
+                        break
+
+                    val = alphabeta(child, depth - 1, alpha, beta, True)
+                    if val < v:
+                        v = val
+                    if v < beta:
+                        beta = v
                     if beta <= alpha:
-                        break # pruning
-            
+                        break
+
             tt[key] = (depth, v)
             return v
-        
+
         # Start with the root node
         root_children = initial_tree_node.compute_and_get_children()
         # If there are no children
         if not root_children:
-            return ACTION_TO_STR[0] # "stay"
-        
+            return ACTION_TO_STR[0]  # "stay"
+
+        # Move ordering at root
         root_children.sort(key=heuristic, reverse=True)
-        
-        # We want to maximize
-        best_value = float('-inf')
-        best_moves = []
-        alpha = float('-inf')
-        beta = float('inf')
 
-         # At root it's our turn (MAX).
-        for child in root_children:
-            # Opponents turn, returns 5 values
-            val = alphabeta(child, 4, alpha, beta, False) # Worse value on Kattis if >4 why??
+        # Iterative deepening
+        best_move_overall = root_children[0].move
+        best_value_overall = float('-inf')
+        best_heur_overall = heuristic(root_children[0])
 
-            # Check the 5 value
-            if val > best_value:
-                best_value = val
-                best_moves = [child.move]
-                # If some values are the same, add both to the list
-            elif val == best_value:
-                best_moves.append(child.move)
-                
-            alpha = max(alpha, best_value)
+        # max search depth
+        max_depth = 8
 
-        choosen_move = random.choice(best_moves) # This does so that we sometimes get different results on Kattis with the same depth
+        for current_depth in range(1, max_depth + 1):
+            if (time.time() - start_time) >= TIME_LIMIT:
+                break
+
+            # print(f"\n=== IDS depth {current_depth} ===", file=sys.stderr)
+
+            time_up = False
+            best_value = float('-inf')
+            best_heur = float('-inf')
+            best_moves = []
+            alpha = float('-inf')
+            beta = float('inf')
+
+            for child in root_children:
+                if time_up or (time.time() - start_time) >= TIME_LIMIT:
+                    time_up = True
+                    break
+
+                val = alphabeta(child, current_depth, alpha, beta, False)
+                if time_up:
+                    break
+
+                h = heuristic(child)
+
+                # First by minimax value, then by heuristic
+                if val > best_value or (val == best_value and h > best_heur):
+                    best_value = val
+                    best_heur = h
+                    best_moves = [child.move]
+                elif val == best_value and h == best_heur:
+                    best_moves.append(child.move)
+
+                alpha = max(alpha, best_value)
+
+            # Only accept this depth if we finished it in time
+            if not time_up and best_moves:
+                best_value_overall = best_value  # For debug
+                best_heur_overall = best_heur # For debug
+                # Allow random among truly equal moves
+                best_move_overall = random.choice(best_moves)
+                # Reorder root children so best move is first next iteration
+                root_children.sort(key=lambda c: c.move != best_move_overall)
+
+                # print(
+                #     f"Depth {current_depth} complete. Best value={best_value_overall}, "
+                #     f"best_heur={best_heur_overall}, best_move={best_move_overall}",
+                #     file=sys.stderr,
+                # )
+            # else:
+            #     print(f"Stopped early at depth {current_depth} (time_up={time_up})", file=sys.stderr)
+
+            if time_up:
+                break
+
+        # print(
+        #     f"Chosen move={best_move_overall}, total_nodes_visited={nodes_visited}",
+        #     file=sys.stderr,
+        # )
+
+        choosen_move = best_move_overall
         return ACTION_TO_STR[choosen_move]
 
-                
-        
-        
-        
 
         # EDIT THIS METHOD TO RETURN BEST NEXT POSSIBLE MODE USING MINIMAX ###
 
