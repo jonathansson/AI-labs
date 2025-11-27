@@ -43,7 +43,7 @@ def matrix_mult(a, b):
 
 
 transition, emission, initial = parse(file)
-gubbe = matrix_mult(initial, transition)
-print(gubbe)
-tant = matrix_mult(gubbe, emission)
-print(tant)
+init_tran = matrix_mult(initial, transition)
+print(init_tran)
+init_tran_emis = matrix_mult(gubbe, emission)
+print(init_tran_emis)
