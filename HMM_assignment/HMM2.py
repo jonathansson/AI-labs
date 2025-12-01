@@ -43,7 +43,7 @@ def viterbi_algo(transition, emission, initial, sequence):
         delta_1.append(get_pi(i) * get_B(i, first_obs))
     
     deltas.append(delta_1)
-    back_pointers.append([0] * nr_states) # Dummy row for t=1
+    back_pointers.append([0] * nr_states)
 
     # Iterate t from 2 to T (indices 1 to T-1 in 0-indexed lists)
     # sequence array has structure [Length, obs1, obs2...] so obs at t is sequence[t+1]
