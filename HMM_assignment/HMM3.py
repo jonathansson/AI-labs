@@ -192,5 +192,5 @@ def baum_welch(transition, emission, initial, sequence):
             res_B.append(f"{val:.6f}")
     print(" ".join(res_B))
 
-transition_in, emission_in, initial_in, sequence_in = parse(file)
-baum_welch(transition_in, emission_in, initial_in, sequence_in)
+transition, emission, initial, sequence = parse(file)
+baum_welch(transition, emission, initial, sequence)
